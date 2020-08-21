@@ -7,7 +7,36 @@ IP = ""
 PORT = 5050
 ADDR = (IP,PORT)
 
+def client_handler(conn_list,
+                   num_list,
+                   answer_list,
+                   point_list,
+                   progress_list,
+                   server_socket
+                   ):
+    '''
+    define threading
+    '''
+    connect_socket, connect_addr = server_socket.accept()
+    print('connected by ',connect_addr[1])
+
+    notice(conn_list, num_list,answer_list,point_list,progress_list,connect_socket,connect_addr)
+    try:
+        print('connected_list : ',conn_list)
+        index_num = get_index(conn_list, connect_addr)
+        check_conn(conn_list,num_list,answer_list,point_list,progress_list,index_num,connect_socket,connect_addr)
+
+        ask_start_game(answer_list,index_num,connect_socket,conn_list,connect_addr)
+        game(conn_list,answer_list,num_list,point_list,index_num,answer_dict,connect_socket,connect_addr)
+    except ConnectionResetError as e:
+        disconn(conn_list,num_list,answer_list,point_list,progress_list,index_num,connect_socket,connect_addr)
+
 def first_sentence(connect_addr,conn_list,num):
+    '''
+    when client connect server, it is the first
+    sentence client can recieve
+    it contains how to play
+    '''
     if len(conn_list) == 0 :
         sentence = "\' No-one is here!"
     else:
@@ -24,6 +53,10 @@ def first_sentence(connect_addr,conn_list,num):
     return sentence
     
 def notice(conn_list,num_list,answer_list,point_list,pregress_list,connect_socket,connect_addr):
+    '''
+    1.Send #first sentence
+    2.Create lists 
+    '''
     if connect_addr[1] not in conn_list:
         num = random.randint(1, 3)
         sentence = first_sentence(connect_addr,conn_list, num) 
@@ -36,7 +69,42 @@ def notice(conn_list,num_list,answer_list,point_list,pregress_list,connect_socke
         point_list.append(0)
         progress_list.append(0)
 
+def disconn(conn_list,num_list,answer_list,point_list,progress_list,index_num,connect_socket,connect_addr):
+    '''
+    Delete user infomation form the list when connection is disconnected
+    '''
+    print("Disconnected by "+ str(connect_addr[1]))
+    del conn_list[index_num]
+    del num_list[index_num]
+    del answer_list[index_num]
+    del point_list[index_num]
+    del progress_list[index_num]
+    connect_socket.close()
+
+def ask_start_game(answer_list,index_num,connect_socket,conn_list,connect_addr):
+    '''
+    when more than two clients gather, ask if clients want to play the game.
+    '''
+
+    if len(conn_list) >= 3:##
+        
+        ask_ready = "\n"+"+"*50 +\
+            "\nmore than three people are in this room. Do you want a play game?(y,n)"+\
+                "\n"+"+"*50
+
+        connect_socket.send(ask_ready.encode("utf-8"))
+        while True:
+            time.sleep(1)
+            answer = connect_socket.recv(1024)
+            if answer.decode('utf-8') == 'y':
+                answer_list[index_num] = 1
+                break
+
+
 def check_maximum(conn_list,connect_socket):
+    '''
+    limit max clients
+    '''
     if len(conn_list) >= 6:
         msg = "Sorry, Our room is already full! see you next time"
         connect_socket.send(msg.encode("utf-8"))
@@ -46,33 +114,21 @@ def check_maximum(conn_list,connect_socket):
         pass
         
 def check_conn(conn_list,num_list,answer_list,point_list,progress_list,index_num,connect_socket,connect_addr):
+    '''
+    1.#check_maximum
+    2. checking how many clinets are connecting
+    '''
     while True :
         time.sleep(1)
         check_maximum(conn_list,connect_socket)
         if len(conn_list) >= 3:
             break
             
-def client_handler(conn_list,
-                   num_list,
-                   answer_list,
-                   point_list,
-                   progress_list,
-                   server_socket
-                   ):
-            try:
-                connect_socket, connect_addr = server_socket.accept()
-                print('connected by ',connect_addr[1])
-
-                notice(conn_list, num_list,answer_list,point_list,progress_list,connect_socket,connect_addr)
-                index_num = get_index(conn_list, connect_addr)
-                check_conn(conn_list,num_list,answer_list,point_list,progress_list,index_num,connect_socket,connect_addr)
-        
-                ask_start_game(answer_list,index_num,connect_socket,conn_list,connect_addr)
-                game(conn_list,answer_list,num_list,point_list,index_num,answer_dict,connect_socket,connect_addr)
-            except ConnectionResetError as e:
-                disconn(conn_list,num_list,answer_list,point_list,progress_list,index_num,connect_socket,connect_addr)
         
 def game_msg(orderal,conn_list,connect_socket,connect_addr):
+    '''
+    game message
+    '''
     orderal_list = ["first","second","third","firth","fifth","sixth","seventh","eighth"]
     if connect_addr[1] == conn_list[(orderal-1)%3]:
         msg = "[{}]it's your turn. other players are guessing your number. plz wait a sec".format(orderal_list[orderal-1])
@@ -91,6 +147,10 @@ def game_msg(orderal,conn_list,connect_socket,connect_addr):
     return answer
 
 def check(orderal,answer, conn_list,num_list,point_list,index_num,answer_dict,connect_socket,connect_addr):
+    '''
+    1. checking answer whether correct or not
+    2. adding point
+    '''
     
     if answer == num_list[(orderal-1)%3]:
         point_list[index_num] += 1 
@@ -118,6 +178,9 @@ def check(orderal,answer, conn_list,num_list,point_list,index_num,answer_dict,co
                 break
 
 def game(conn_list,answer_list,num_list,point_list,index_num,answer_dict,connect_socket,connect_addr):
+    '''
+    Game progress
+    '''
     while True:
         time.sleep(1)
         if 0 not in answer_list:
@@ -137,17 +200,10 @@ def game(conn_list,answer_list,num_list,point_list,index_num,answer_dict,connect
             break
         i += 1
         
-
-def disconn(conn_list,num_list,answer_list,point_list,progress_list,index_num,connect_socket,connect_addr):
-    print("Disconnected by "+ str(connect_addr[1]))
-    del conn_list[index_num]
-    del num_list[index_num]
-    del answer_list[index_num]
-    del point_list[index_num]
-    del progress_list[index_num]
-    connect_socket.close()
-
 def get_index(conn_list, connect_addr):
+    '''
+    Check the index of the currently connected clinet
+    '''
     i = 0
     for k in conn_list:
         if k == connect_addr[1]:
@@ -156,26 +212,13 @@ def get_index(conn_list, connect_addr):
     return index_num
 
 def make_answer_dict():
+    '''
+    Make dict contain client's answers
+    '''
     answer_dict = {}
     for i in range(8):
         answer_dict[i]={}
     return answer_dict
-
-def ask_start_game(answer_list,index_num,connect_socket,conn_list,connect_addr):
-
-    if len(conn_list) >= 3:##
-        
-        ask_ready = "\n"+"+"*50 +\
-            "\nmore than three people are in this room. Do you want a play game?(y,n)"+\
-                "\n"+"+"*50
-
-        connect_socket.send(ask_ready.encode("utf-8"))
-        while True:
-            time.sleep(1)
-            answer = connect_socket.recv(1024)
-            if answer.decode('utf-8') == 'y':
-                answer_list[index_num] = 1
-                break
 
 server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server_socket.bind(ADDR)
@@ -198,7 +241,6 @@ while True:
                                                           point_list, 
                                                           progress_list,
                                                           server_socket))
-    t.daemon = True
     t.start()
 
 connect_socket.close()
